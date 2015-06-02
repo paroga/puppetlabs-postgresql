@@ -77,6 +77,12 @@ define postgresql::server::database(
     db     => $default_db,
   }
 
+  Exec[ $createdb_command ]->
+  postgresql_psql {"ALTER DATABASE \"${dbname}\" OWNER TO \"${owner}\"":
+    unless => "SELECT roles.rolname FROM pg_database LEFT JOIN pg_roles roles ON datdba = roles.oid WHERE datname = '${dbname}' AND roles.rolname = '${owner}'",
+    db     => $default_db,
+  }
+
   if $comment {
     # The shobj_description function was only introduced with 8.2
     $comment_information_function =  $version ? {
