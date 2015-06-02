@@ -7,6 +7,7 @@ define postgresql::server::role(
   $port             = $postgresql::server::port,
   $login            = true,
   $inherit          = true,
+  $inrole           = false,
   $superuser        = false,
   $replication      = false,
   $connection_limit = '-1',
@@ -31,6 +32,12 @@ define postgresql::server::role(
     $environment  = []
   }
 
+  if ($inrole != false) {
+    $inrole_sql = "IN ROLE ${inrole}"
+  } else {
+    $inrole_sql = ''
+  }
+
   Postgresql_psql {
     db         => $db,
     port       => $port,
@@ -44,7 +51,7 @@ define postgresql::server::role(
   }
 
   postgresql_psql { "CREATE ROLE ${username} ENCRYPTED PASSWORD ****":
-    command     => "CREATE ROLE \"${username}\" ${password_sql} ${login_sql} ${createrole_sql} ${createdb_sql} ${superuser_sql} ${replication_sql} CONNECTION LIMIT ${connection_limit}",
+    command     => "CREATE ROLE \"${username}\" ${password_sql} ${login_sql} ${createrole_sql} ${createdb_sql} ${superuser_sql} ${replication_sql} ${$inrole_sql} CONNECTION LIMIT ${connection_limit}",
     unless      => "SELECT rolname FROM pg_roles WHERE rolname='${username}'",
     environment => $environment,
     require     => Class['Postgresql::Server'],
@@ -97,6 +104,12 @@ define postgresql::server::role(
       command     => "ALTER ROLE \"${username}\" ${password_sql}",
       unless      => "SELECT usename FROM pg_shadow WHERE usename='${username}' and passwd='${pwd_hash_sql}'",
       environment => $environment,
+    }
+  }
+
+  if ($inrole != false) {
+    postgresql_psql {"GRANT \"${inrole}\" TO \"${username}\"":
+      unless => "SELECT inrole.rolname FROM pg_auth_members LEFT JOIN pg_roles inrole ON roleid = inrole.oid LEFT JOIN pg_roles member ON member = member.oid WHERE inrole.rolname = '${inrole}' AND member.rolname = '${username}'",
     }
   }
 }
